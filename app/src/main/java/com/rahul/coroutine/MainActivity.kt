@@ -7,17 +7,37 @@ import android.widget.TextView
 import kotlinx.coroutines.*
 
 class MainActivity : AppCompatActivity() {
+    val JOB_TIMEOUT = 2100L
     lateinit var text: TextView
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         var button: Button = findViewById<Button>(R.id.button_1)
         button.setOnClickListener {
+            setNewText("Click")
             CoroutineScope(Dispatchers.IO).launch {
                 fakeApiRequest()
             }
         }
         text = findViewById(R.id.text)
+    }
+
+    private suspend fun fakeApiRequest() {
+        withContext(Dispatchers.IO) {
+            val job = withTimeoutOrNull(JOB_TIMEOUT) {
+                val result1 = getResultOneFromApi()
+                setTextOnMainThread(result1)
+                val result2 = getResultTwoFromApi()
+                setTextOnMainThread(result2)
+            }
+            if (job == null) {
+                val message = "timeout message"
+                System.out.println("debug $message")
+            } else {
+                val message = "job success"
+                System.out.println("debug $message")
+            }
+        }
     }
 
     private fun setNewText(input: String) {
@@ -32,13 +52,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun fakeApiRequest() {
+    /*private suspend fun fakeApiRequest() {
         val result = getResultOneFromApi()
         setTextOnMainThread(result)
 
         val result2 = getResultTwoFromApi()
         setTextOnMainThread(result2)
-    }
+    }*/
 
     private suspend fun getResultOneFromApi(): String {
         logThread("getResultOneFromApi")
