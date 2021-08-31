@@ -7,93 +7,87 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers.IO
+import kotlin.system.measureTimeMillis
+import kotlin.time.measureTime
 
 class MainActivity : AppCompatActivity() {
 
     lateinit var button: Button
     lateinit var text: TextView
-    lateinit var progress: ProgressBar
-    private val PROGRESS_MAX = 100
-    private val PROGRESS_START = 0
-    private val JOB_TIME = 4000
-
-    private lateinit var job: CompletableJob
-    //Job vs CompletableJob
-    //interface CompletableJob extends Job
-    //mean CompletableJob have more features like Complete and CompleteExceptionally
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        button = findViewById<Button>(R.id.job_button)
-        text = findViewById<TextView>(R.id.jobTextComplete)
-        progress = findViewById<ProgressBar>(R.id.progressbar)
+        button = findViewById(R.id.button)
+        text = findViewById(R.id.text)
+
         button.setOnClickListener {
-            if (!::job.isInitialized) {
-                initJob()
-            }
-            progress.startJobOrCancel(job)
+            setNewText("Clicked!")
+            fakeApiRequest()
         }
+
     }
 
-    fun ProgressBar.startJobOrCancel(job: Job) {
-        if (this.progress > 0) {
-            println("debug $job is already active, cancelling...")
-            resetJob()
-        } else {
-            button.text = "cancel job #1"
-
-            //new coroutine context
-            CoroutineScope(Dispatchers.IO + job).launch {
-                println("debug coroutine ${this} is activated with job ${job}")
-                for(i in PROGRESS_START.. PROGRESS_MAX){
-                    delay((JOB_TIME/PROGRESS_MAX).toLong())
-                    this@startJobOrCancel.progress = i
+    fun fakeApiRequest(){
+        CoroutineScope(IO).launch {
+            var executionTime = measureTimeMillis {
+                var  result1:Deferred<String> = async {
+                    getResultOneFromApi()
                 }
-                updateJobCompleteTextView("Job is complete")
-            }
-        }
-    }
 
-    fun updateJobCompleteTextView(str:String){
-        GlobalScope.launch(Dispatchers.Main ) {
-            text.text = str
-        }
-    }
-
-    fun resetJob() {
-        if(job.isActive || job.isCompleted){
-            job.cancel(CancellationException("resetting job"))
-        }
-
-        //because once job is cancelled we cannot new one, so creating new job
-        initJob()
-    }
-
-    fun initJob() {
-        button.text = "start job #1"
-        updateJobCompleteTextView("")
-        job = Job()
-
-        //whether job is completed or exception to update the user
-        job.invokeOnCompletion {
-            it?.message.let {
-                var msg = it
-                if (msg.isNullOrBlank()) {
-                    msg = "unknown error"
+                var result2:Deferred<String> = async {
+                    getResultTwoFromApi()
                 }
-                println("debug $job was cancelled. Reason: $msg")
-                showToast(msg)
+
+                setTextOnMainThread("Got ${result1.await()}")
+                setTextOnMainThread("Got ${result2.await()}")
             }
+            println("debug : total time elapsed $executionTime")
         }
-        progress.max = PROGRESS_MAX
-        progress.progress = PROGRESS_START
+
     }
 
-    fun showToast(text: String) {
-        GlobalScope.launch(Dispatchers.Main) {
-            Toast.makeText(this@MainActivity, text, Toast.LENGTH_LONG).show()
-        }
+    /*fun fakeApiRequest() {
+        CoroutineScope(IO).launch {
+            val job1 = launch {
+                val time1 = measureTimeMillis {
+                    println("debug launchijng job1 in thread ${Thread.currentThread().name}")
+                    val result1 = getResultOneFromApi()
+                    setTextOnMainThread("Got $result1")
+                }
+                println("debug completed job1 in $time1 ms")
+            }
 
+            val job2 = launch {
+                val time2 = measureTimeMillis {
+                    println("debug launchijng job2 in thread ${Thread.currentThread().name}")
+                    val result2 = getResultTwoFromApi()
+                    setTextOnMainThread("Got $result2")
+                }
+                println("debug completed job1 in $time2 ms")
+            }
+        }
+    }*/
+
+    fun setNewText(input: String) {
+        val newText = text.text.toString() + "\ninput"
+        text.text = newText
+    }
+
+    suspend fun setTextOnMainThread(input: String) {
+        withContext(Dispatchers.Main) {
+            setNewText(input)
+        }
+    }
+
+    suspend fun getResultOneFromApi(): String {
+        delay(1000)
+        return "Result #1"
+    }
+
+    suspend fun getResultTwoFromApi(): String {
+        delay(1700)
+        return "Result #2"
     }
 }
